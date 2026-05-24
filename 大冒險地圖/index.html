@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大冒險地圖</title>
+<style>
+:root {
+    --primary: #4cc9f0;
+    --success: #38b000;
+    --danger: #d00000;
+    --warning: #fca311;
+    --gold: #ffd700;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #111;
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+}
+
+/* Cover Screen */
+#cover-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    background: url('cover.png') center/contain no-repeat #000;
+    cursor: pointer;
+    transition: opacity 0.8s ease;
+    display: none; /* Controlled by JS */
+}
+#cover-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+.cover-hint {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    text-align: center;
+    font-size: 1.5rem;
+    color: #fff;
+    text-shadow: 0 2px 5px #000;
+    animation: blink 1.5s infinite;
+    pointer-events: none;
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+/* Top Right UI */
+#top-right-ui {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 12px 25px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 215, 0, 0.5);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+.cert-count-text {
+    color: #ffd700;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+.clear-btn {
+    background: rgba(255, 0, 0, 0.2);
+    color: #fff;
+    border: 1px solid #ff4d4d;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: bold;
+}
+.clear-btn:hover {
+    background: rgba(255, 0, 0, 0.5);
+}
+
+/* Map Container */
+#map-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.map-wrapper {
+    position: relative;
+    width: 100vw;
+    max-width: calc(100vh * (16 / 9));
+    height: 100vh;
+    max-height: calc(100vw * (9 / 16));
+}
+.map-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Hotspots */
+.hotspot {
+    position: absolute;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+.hotspot:hover {
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 20px rgba(255, 255, 200, 0.6);
+}
+
+/* Coordinates based on 16:9 map-bg.png */
+#spot-dynasty { top: 34%; left: 11%; width: 19%; height: 10%; }
+#spot-idiom { top: 33%; left: 67%; width: 17%; height: 9%; }
+#spot-warrior { top: 82%; left: 71%; width: 18%; height: 9%; }
+#spot-gate { top: 66%; left: 36.5%; width: 26%; height: 11%; }
+
+/* Stamp */
+.stamp {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    color: #38b000;
+    font-size: 2.5rem;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    transform: rotate(15deg);
+    pointer-events: none;
+    display: none;
+}
+.completed .stamp::after {
+    content: "已完成";
+    display: block;
+    margin-top: -6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 900;
+    white-space: nowrap;
+    transform: rotate(-15deg);
+}
+.completed .stamp {
+    display: block;
+    animation: stampIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes stampIn {
+    0% { transform: scale(3) rotate(0deg); opacity: 0; }
+    100% { transform: scale(1) rotate(15deg); opacity: 1; }
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal.hidden { display: none; }
+.modal-content {
+    background: #2a2a40;
+    border: 2px solid var(--primary);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    padding: 30px;
+    box-sizing: border-box;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.5rem;
+    color: #aaa;
+    cursor: pointer;
+    background: none;
+    border: none;
+}
+.close-btn:hover { color: white; }
+
+/* Drag and Drop area */
+.slots-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 30px 0;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 15px;
+}
+.slot {
+    width: 100px;
+    height: 100px;
+    border: 2px dashed #666;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    position: relative;
+    transition: all 0.2s;
+}
+.slot.drag-over {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+.slot-label {
+    font-size: 0.9rem;
+    color: #888;
+    position: absolute;
+    bottom: 10px;
+    pointer-events: none;
+}
+.backpack {
+    min-height: 120px;
+    border: 2px solid #555;
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.cert-badge {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    border: 3px solid #fff;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.5rem;
+    cursor: grab;
+    user-select: none;
+    touch-action: none; /* Important for touch devices */
+    position: relative;
+    z-index: 10;
+}
+.cert-badge:active { cursor: grabbing; }
+.cert-badge.dragging { opacity: 0.8; transform: scale(1.1); }
+.slot .cert-badge {
+    width: 90px;
+    height: 90px;
+    font-size: 3rem;
+    background: linear-gradient(135deg, #38b000, #006400);
+    cursor: default;
+}
+
+@keyframes flashRed {
+    0%, 100% { border-color: #666; background: rgba(255,255,255,0.05); }
+    50% { border-color: var(--danger); background: rgba(208, 0, 0, 0.3); }
+}
+.flash-red { animation: flashRed 0.4s ease; }
+
+/* Win Screen */
+.win-screen {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, #2a2a40 0%, #000 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+.win-screen.hidden { display: none; }
+.win-title {
+    font-size: 4rem;
+    color: var(--gold);
+    margin-bottom: 20px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.win-time {
+    font-size: 1.5rem;
+    margin-bottom: 40px;
+    background: rgba(255,255,255,0.1);
+    padding: 15px 30px;
+    border-radius: 30px;
+}
+.win-btn {
+    background: var(--primary);
+    color: white;
+    font-size: 1.2rem;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: bold;
+}
+.win-btn:hover {
+    background: #3b9ac0;
+    transform: scale(1.05);
+}
+@keyframes popIn {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- Cover Screen -->
+<div id="cover-screen">
+    <div class="cover-hint">點擊任意處開始冒險</div>
+</div>
+
+<!-- UI Overlay -->
+<div id="top-right-ui">
+    <div class="cert-count-text">持有 <span id="cert-count">0</span> / 3</div>
+    <button class="clear-btn" onclick="clearProgress()">🔄 清除進度</button>
+</div>
+
+<!-- Map -->
+<div id="map-container">
+    <div class="map-wrapper">
+        <img src="map-bg.png" alt="大冒險地圖">
+        
+        <!-- Hotspots -->
+        <div id="spot-dynasty" class="hotspot" onclick="location.href='../示範1_朝代配對/index.html'">
+            <div class="stamp">✅</div>
+        </div>
+        <div id="spot-idiom" class="hotspot" onclick="location.href='../示範2_成語填字/index.html'">
+            <div class="stamp">✅</div>
+        </div>
+        <div id="spot-warrior" class="hotspot" onclick="location.href='../示範3_打怪RPG/index.html'">
+            <div class="stamp">✅</div>
+        </div>
+        <div id="spot-gate" class="hotspot" onclick="openGateModal()"></div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="gate-modal" class="modal hidden">
+    <div class="modal-content">
+        <button class="close-btn" onclick="closeGateModal()">✖</button>
+        <h2 style="color:var(--gold); margin-top:0;">解開通關大門</h2>
+        <p>將對應的憑證拖曳到凹槽中</p>
+
+        <div class="slots-container">
+            <div class="slot" data-type="dynasty" id="slot-dynasty">
+                <div class="slot-label">朝代</div>
+            </div>
+            <div class="slot" data-type="idiom" id="slot-idiom">
+                <div class="slot-label">成語</div>
+            </div>
+            <div class="slot" data-type="warrior" id="slot-warrior">
+                <div class="slot-label">勇者</div>
+            </div>
+        </div>
+
+        <h3 style="text-align: left; margin-bottom: 10px; color: #ccc;">🎒 我的背包</h3>
+        <div class="backpack" id="backpack">
+            <!-- Badges will be generated here -->
+        </div>
+    </div>
+</div>
+
+<!-- Win Screen -->
+<div id="win-screen" class="win-screen hidden">
+    <div class="win-title">🏆 冒險完成！</div>
+    <div class="win-time" id="win-time">總冒險時長：-- 分 -- 秒</div>
+    <button class="win-btn" onclick="clearProgress()">再次冒險</button>
+</div>
+
+<script>
+// 初始化冒險時間
+if (!localStorage.getItem('adventure_start')) {
+    localStorage.setItem('adventure_start', Date.now());
+}
+
+let certs = {
+    dynasty: localStorage.getItem('cert_dynasty') === 'true',
+    idiom: localStorage.getItem('cert_idiom') === 'true',
+    warrior: localStorage.getItem('cert_warrior') === 'true'
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Cover Logic
+    const cover = document.getElementById('cover-screen');
+    if (!sessionStorage.getItem('intro_seen')) {
+        cover.style.display = 'block';
+        cover.addEventListener('click', () => {
+            cover.classList.add('fade-out');
+            sessionStorage.setItem('intro_seen', 'true');
+            setTimeout(() => cover.style.display = 'none', 800);
+        });
+    }
+
+    updateUI();
+});
+
+window.addEventListener('pageshow', updateUI);
+
+function refreshCerts() {
+    certs = {
+        dynasty: localStorage.getItem('cert_dynasty') === 'true',
+        idiom: localStorage.getItem('cert_idiom') === 'true',
+        warrior: localStorage.getItem('cert_warrior') === 'true'
+    };
+}
+
+function updateUI() {
+    refreshCerts();
+    document.querySelectorAll('.hotspot.completed').forEach(spot => {
+        spot.classList.remove('completed');
+    });
+
+    let count = 0;
+    if (certs.dynasty) {
+        document.getElementById('spot-dynasty').classList.add('completed');
+        count++;
+    }
+    if (certs.idiom) {
+        document.getElementById('spot-idiom').classList.add('completed');
+        count++;
+    }
+    if (certs.warrior) {
+        document.getElementById('spot-warrior').classList.add('completed');
+        count++;
+    }
+    document.getElementById('cert-count').innerText = count;
+}
+
+function clearProgress() {
+    if(confirm('確定要清除所有進度並重來嗎？')) {
+        localStorage.clear();
+        sessionStorage.clear();
+        location.reload();
+    }
+}
+
+function openGateModal() {
+    document.getElementById('gate-modal').classList.remove('hidden');
+    renderBackpack();
+}
+
+function closeGateModal() {
+    document.getElementById('gate-modal').classList.add('hidden');
+    // Reset slots
+    document.querySelectorAll('.slot').forEach(slot => {
+        const badge = slot.querySelector('.cert-badge');
+        if(badge) badge.remove();
+        slot.classList.remove('drag-over', 'flash-red');
+    });
+}
+
+const icons = { dynasty: '🎴', idiom: '📝', warrior: '⚔️' };
+
+function renderBackpack() {
+    const bp = document.getElementById('backpack');
+    bp.innerHTML = '';
+    
+    Object.keys(certs).forEach(key => {
+        // 如果已經放入凹槽，就不在背包顯示
+        const slot = document.getElementById('slot-' + key);
+        const hasBadgeInSlot = slot.querySelector('.cert-badge');
+
+        if (certs[key] && !hasBadgeInSlot) {
+            const badge = document.createElement('div');
+            badge.className = 'cert-badge';
+            badge.innerText = icons[key];
+            badge.dataset.type = key;
+            badge.draggable = true;
+            
+            // Mouse events
+            badge.addEventListener('dragstart', handleDragStart);
+            badge.addEventListener('dragend', handleDragEnd);
+
+            // Touch events for mobile
+            badge.addEventListener('touchstart', handleTouchStart, {passive: false});
+            badge.addEventListener('touchmove', handleTouchMove, {passive: false});
+            badge.addEventListener('touchend', handleTouchEnd);
+
+            bp.appendChild(badge);
+        }
+    });
+}
+
+// --- Drag and Drop Logic (Mouse) ---
+let draggedItem = null;
+
+function handleDragStart(e) {
+    draggedItem = this;
+    setTimeout(() => this.classList.add('dragging'), 0);
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    draggedItem = null;
+}
+
+const slots = document.querySelectorAll('.slot');
+slots.forEach(slot => {
+    slot.addEventListener('dragover', e => {
+        e.preventDefault();
+        slot.classList.add('drag-over');
+    });
+    slot.addEventListener('dragleave', e => {
+        slot.classList.remove('drag-over');
+    });
+    slot.addEventListener('drop', e => {
+        e.preventDefault();
+        slot.classList.remove('drag-over');
+        if (draggedItem) {
+            processDrop(slot, draggedItem.dataset.type);
+        }
+    });
+});
+
+// --- Touch Logic (Mobile/Tablet) ---
+let touchClone = null;
+
+function handleTouchStart(e) {
+    draggedItem = this;
+    const touch = e.touches[0];
+    
+    // Create a clone for visuals
+    touchClone = this.cloneNode(true);
+    touchClone.classList.add('dragging');
+    touchClone.style.position = 'fixed';
+    touchClone.style.zIndex = '9999';
+    touchClone.style.pointerEvents = 'none'; // so elementFromPoint works
+    
+    moveClone(touch.clientX, touch.clientY);
+    document.body.appendChild(touchClone);
+    this.style.opacity = '0.5';
+    
+    e.preventDefault(); // prevent scroll
+}
+
+function handleTouchMove(e) {
+    if (!touchClone) return;
+    const touch = e.touches[0];
+    moveClone(touch.clientX, touch.clientY);
+    
+    // Highlight drop target
+    const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const slot = elemBelow ? elemBelow.closest('.slot') : null;
+    
+    document.querySelectorAll('.slot').forEach(s => s.classList.remove('drag-over'));
+    if (slot) slot.classList.add('drag-over');
+    
+    e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    if (!touchClone) return;
+    const touch = e.changedTouches[0];
+    const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const slot = elemBelow ? elemBelow.closest('.slot') : null;
+    
+    touchClone.remove();
+    touchClone = null;
+    this.style.opacity = '1';
+    
+    document.querySelectorAll('.slot').forEach(s => s.classList.remove('drag-over'));
+    
+    if (slot && draggedItem) {
+        processDrop(slot, draggedItem.dataset.type);
+    }
+    draggedItem = null;
+}
+
+function moveClone(x, y) {
+    if(touchClone) {
+        touchClone.style.left = (x - 40) + 'px';
+        touchClone.style.top = (y - 40) + 'px';
+    }
+}
+
+// --- Common Drop Logic ---
+function processDrop(slot, itemType) {
+    const slotType = slot.dataset.type;
+    const hasItem = slot.querySelector('.cert-badge');
+
+    if (hasItem) return; // 已經滿了
+
+    if (slotType === itemType) {
+        // Correct slot
+        const badge = document.querySelector(`.backpack .cert-badge[data-type="${itemType}"]`);
+        if(badge) {
+            slot.appendChild(badge);
+            badge.draggable = false;
+            badge.removeEventListener('touchstart', handleTouchStart);
+            checkWinCondition();
+        }
+    } else {
+        // Wrong slot
+        slot.classList.add('flash-red');
+        setTimeout(() => slot.classList.remove('flash-red'), 400);
+    }
+}
+
+function checkWinCondition() {
+    const fullSlots = document.querySelectorAll('.slot .cert-badge').length;
+    if (fullSlots === 3) {
+        setTimeout(showWinScreen, 500);
+    }
+}
+
+function showWinScreen() {
+    document.getElementById('gate-modal').classList.add('hidden');
+    const winScreen = document.getElementById('win-screen');
+    winScreen.classList.remove('hidden');
+    
+    const startTime = parseInt(localStorage.getItem('adventure_start') || Date.now());
+    const diff = Math.floor((Date.now() - startTime) / 1000);
+    const min = Math.floor(diff / 60);
+    const sec = diff % 60;
+    
+    document.getElementById('win-time').innerText = `總冒險時長：${min} 分 ${sec} 秒`;
+}
+</script>
+</body>
+</html>

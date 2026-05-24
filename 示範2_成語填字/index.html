@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成語填字</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap");
+
+    :root {
+      --paper: #f3dfb8;
+      --paper-deep: #dfbd7a;
+      --ink: #26170f;
+      --muted: #73533a;
+      --red: #b93525;
+      --red-deep: #821f18;
+      --green: #268153;
+      --gold: #b87a2d;
+      --card: #f9e9bf;
+      --shadow: rgba(78, 42, 19, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      font-family: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(185, 53, 37, 0.12), transparent 24%),
+        radial-gradient(circle at 82% 20%, rgba(184, 122, 45, 0.16), transparent 28%),
+        linear-gradient(120deg, rgba(255,255,255,0.3), transparent 36%),
+        var(--paper);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(90deg, rgba(88, 54, 30, 0.04) 1px, transparent 1px),
+        linear-gradient(rgba(88, 54, 30, 0.04) 1px, transparent 1px),
+        radial-gradient(rgba(95, 58, 30, 0.12) 0.7px, transparent 0.7px);
+      background-size: 42px 42px, 42px 42px, 9px 9px;
+      mix-blend-mode: multiply;
+    }
+
+    .app {
+      width: min(1080px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+      position: relative;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 0 18px;
+      border-bottom: 3px double rgba(130, 31, 24, 0.38);
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--red-deep);
+      font-size: clamp(2.1rem, 6vw, 4.4rem);
+      font-weight: 900;
+      letter-spacing: 0;
+      text-shadow: 1px 2px 0 rgba(255,255,255,0.55);
+    }
+
+    .progress {
+      min-width: 150px;
+      padding: 10px 14px;
+      border: 2px solid rgba(130, 31, 24, 0.38);
+      background: rgba(255, 246, 218, 0.65);
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700;
+      box-shadow: 0 10px 24px var(--shadow);
+    }
+
+    .progress strong {
+      color: var(--red-deep);
+      font-size: 1.55rem;
+      line-height: 1;
+    }
+
+    .stage {
+      margin-top: 22px;
+      padding: 22px;
+      border: 2px solid rgba(130, 31, 24, 0.32);
+      background:
+        linear-gradient(rgba(255, 249, 230, 0.74), rgba(245, 222, 177, 0.68)),
+        rgba(255, 248, 226, 0.74);
+      box-shadow: 0 18px 38px var(--shadow), inset 0 0 0 5px rgba(255, 255, 255, 0.22);
+    }
+
+    .idiom-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(8px, 2vw, 18px);
+      min-height: 132px;
+      padding: 20px 8px;
+    }
+
+    .idiom-char,
+    .blank {
+      display: grid;
+      place-items: center;
+      width: clamp(58px, 13vw, 104px);
+      aspect-ratio: 1;
+      font-size: clamp(2.1rem, 7vw, 5rem);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .idiom-char {
+      color: #1d130d;
+      text-shadow: 1px 2px 0 rgba(255,255,255,0.6);
+    }
+
+    .blank {
+      position: relative;
+      border: 3px solid var(--red);
+      color: rgba(130, 31, 24, 0.34);
+      background: rgba(255, 238, 206, 0.48);
+      transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .blank::before,
+    .blank::after {
+      content: "";
+      position: absolute;
+      background: rgba(185, 53, 37, 0.34);
+      pointer-events: none;
+    }
+
+    .blank::before {
+      width: 1px;
+      inset-block: 0;
+      left: 50%;
+    }
+
+    .blank::after {
+      height: 1px;
+      inset-inline: 0;
+      top: 50%;
+    }
+
+    .blank.hover {
+      background: rgba(255, 215, 155, 0.55);
+      box-shadow: 0 0 0 5px rgba(185, 53, 37, 0.14);
+      transform: translateY(-2px);
+    }
+
+    .blank.filled {
+      color: var(--red-deep);
+      background: rgba(255, 228, 188, 0.86);
+      box-shadow: inset 0 0 18px rgba(185, 53, 37, 0.13);
+    }
+
+    .blank.wrong {
+      animation: wrongGlow 0.2s ease;
+    }
+
+    .feedback {
+      min-height: 116px;
+      margin: 4px auto 18px;
+      padding: 18px;
+      border-top: 1px solid rgba(130, 31, 24, 0.22);
+      border-bottom: 1px solid rgba(130, 31, 24, 0.22);
+      text-align: center;
+    }
+
+    .feedback h2 {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: clamp(1.6rem, 5vw, 3rem);
+      font-weight: 900;
+    }
+
+    .feedback p {
+      max-width: 720px;
+      margin: 0 auto 14px;
+      color: var(--muted);
+      font-size: 1.12rem;
+      line-height: 1.75;
+      font-weight: 700;
+    }
+
+    .feedback[hidden] {
+      display: block;
+      visibility: hidden;
+    }
+
+    .word-bank {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      padding: 16px;
+      border: 2px solid rgba(130, 31, 24, 0.28);
+      background:
+        linear-gradient(90deg, rgba(126, 77, 33, 0.08), transparent 28%, rgba(126, 77, 33, 0.08)),
+        rgba(255, 244, 211, 0.72);
+    }
+
+    .tile {
+      display: grid;
+      place-items: center;
+      min-height: 62px;
+      border: 2px solid rgba(135, 84, 35, 0.62);
+      background:
+        linear-gradient(90deg, rgba(120, 72, 28, 0.08), transparent 35%, rgba(120, 72, 28, 0.1)),
+        linear-gradient(180deg, #fff0c8, #efd391);
+      color: #17100c;
+      font-family: inherit;
+      font-size: clamp(1.6rem, 4vw, 2.35rem);
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 8px 14px rgba(91, 55, 23, 0.16);
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+    }
+
+    .tile:hover {
+      filter: brightness(1.04);
+      transform: translateY(-2px);
+    }
+
+    .tile.dragging {
+      position: fixed;
+      z-index: 20;
+      width: var(--drag-width);
+      height: var(--drag-height);
+      pointer-events: none;
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.05);
+      box-shadow: 0 18px 28px rgba(72, 40, 17, 0.34);
+    }
+
+    .tile.placeholder {
+      opacity: 0.22;
+      pointer-events: none;
+    }
+
+    .tile.locked {
+      min-height: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--red-deep);
+      box-shadow: none;
+      cursor: default;
+      font-size: inherit;
+      animation: correctStamp 0.24s ease-out;
+    }
+
+    .tile.wrong {
+      animation: tileWrong 0.2s ease;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 8px 18px;
+      border: 2px solid var(--red-deep);
+      background: linear-gradient(180deg, #c94836, #8e241b);
+      color: #fff7e1;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 9px 18px rgba(91, 31, 20, 0.25);
+    }
+
+    button:hover {
+      filter: brightness(1.06);
+    }
+
+    .finish {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      padding: 22px;
+      background: rgba(60, 32, 18, 0.36);
+      backdrop-filter: blur(3px);
+    }
+
+    .finish.show {
+      display: grid;
+    }
+
+    .finish-box {
+      width: min(480px, 100%);
+      padding: 30px 24px;
+      border: 3px double var(--red-deep);
+      background: linear-gradient(145deg, #fff3cc, #e8c98b);
+      text-align: center;
+      box-shadow: 0 24px 55px rgba(63, 35, 18, 0.36);
+    }
+
+    .finish-box h2 {
+      margin: 0 0 12px;
+      color: var(--red-deep);
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 900;
+    }
+
+    .finish-box p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 1.18rem;
+      font-weight: 700;
+      line-height: 1.65;
+    }
+
+    @keyframes correctStamp {
+      0% { transform: scale(1.4) rotate(-5deg); opacity: 0.4; }
+      80% { transform: scale(0.92) rotate(1deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+
+    @keyframes wrongGlow {
+      0%, 100% { box-shadow: none; }
+      50% { box-shadow: 0 0 0 8px rgba(185, 53, 37, 0.22), inset 0 0 20px rgba(185, 53, 37, 0.2); }
+    }
+
+    @keyframes tileWrong {
+      0%, 100% { transform: translateX(0); background: linear-gradient(180deg, #fff0c8, #efd391); }
+      50% { transform: translateX(7px); background: #ffc0b2; }
+    }
+
+    @media (max-width: 760px) {
+      header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .progress {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        text-align: left;
+      }
+
+      .stage {
+        padding: 14px;
+      }
+
+      .idiom-row {
+        gap: 7px;
+        min-height: 104px;
+      }
+
+      .word-bank {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a href="../大冒險地圖/index.html" style="position:fixed; top:15px; left:15px; z-index:9999; background:rgba(0,0,0,0.7); color:#ffd700; padding:10px 15px; border-radius:8px; text-decoration:none; border:1px solid #ffd700; font-weight:bold; font-family:sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">← 回到大地圖</a>
+  <main class="app">
+    <header>
+      <h1>成語填字</h1>
+      <div class="progress" aria-live="polite">
+        <span>題目</span>
+        <span><strong id="questionNow">1</strong> / 5</span>
+      </div>
+    </header>
+
+    <section class="stage" aria-label="成語填字遊戲">
+      <div class="idiom-row" id="idiomRow"></div>
+
+      <div class="feedback" id="feedback" hidden>
+        <h2>✓ 答對！</h2>
+        <p id="meaningText"></p>
+        <button type="button" id="nextButton">下一題</button>
+      </div>
+
+      <div class="word-bank" id="wordBank" aria-label="可拖曳字卡"></div>
+    </section>
+  </main>
+
+  <div class="finish" id="finish" role="dialog" aria-modal="true" aria-labelledby="finishTitle">
+    <div class="finish-box">
+      <h2 id="finishTitle">挑戰完成</h2>
+      <p id="scoreText">你完成了 5 題成語填字。</p>
+      <button type="button" onclick="location.href='../大冒險地圖/index.html'">回到大地圖</button>
+      <button type="button" id="restartButton">重新挑戰</button>
+    </div>
+  </div>
+
+  <script>
+    const QUESTIONS = [
+      { 成語: "一鳴驚人", 缺字: [1, 2], 答案: ["鳴", "驚"], 意思: "比喻平時默默無聞，突然有驚人表現。" },
+      { 成語: "風花雪月", 缺字: [1, 3], 答案: ["花", "月"], 意思: "原指四時景色，後比喻浮華空洞的詩文。" },
+      { 成語: "三番五次", 缺字: [1, 3], 答案: ["番", "次"], 意思: "形容次數很多。" },
+      { 成語: "一字千金", 缺字: [1, 3], 答案: ["字", "金"], 意思: "形容文字價值極高。" },
+      { 成語: "畫龍點睛", 缺字: [1, 3], 答案: ["龍", "睛"], 意思: "比喻在關鍵處點明要旨。" },
+      { 成語: "井底之蛙", 缺字: [1, 3], 答案: ["底", "蛙"], 意思: "比喻見識狹小的人。" },
+      { 成語: "刻舟求劍", 缺字: [1, 3], 答案: ["舟", "劍"], 意思: "比喻拘泥成法，不知變通。" },
+      { 成語: "亡羊補牢", 缺字: [1, 3], 答案: ["羊", "牢"], 意思: "比喻出了差錯後及時補救，還不算晚。" },
+      { 成語: "守株待兔", 缺字: [1, 3], 答案: ["株", "兔"], 意思: "比喻墨守成規，妄想不勞而獲。" },
+      { 成語: "狐假虎威", 缺字: [1, 2], 答案: ["假", "虎"], 意思: "比喻倚仗別人的權勢來欺壓人。" },
+      { 成語: "杯弓蛇影", 缺字: [1, 2], 答案: ["弓", "蛇"], 意思: "比喻疑神疑鬼，自相驚擾。" },
+      { 成語: "雪中送炭", 缺字: [1, 3], 答案: ["中", "炭"], 意思: "比喻在別人急需時給予幫助。" }
+    ];
+
+    const DISTRACTORS = "天地山水日月雲雨春秋東西南北仁義禮智信詩書琴棋松竹梅蘭龍鳳金玉石馬鳥花草風雪江河海星光明暗青白黑紅";
+
+    const idiomRow = document.querySelector("#idiomRow");
+    const wordBank = document.querySelector("#wordBank");
+    const feedback = document.querySelector("#feedback");
+    const meaningText = document.querySelector("#meaningText");
+    const nextButton = document.querySelector("#nextButton");
+    const restartButton = document.querySelector("#restartButton");
+    const finish = document.querySelector("#finish");
+    const questionNow = document.querySelector("#questionNow");
+    const scoreText = document.querySelector("#scoreText");
+
+    let roundQuestions = [];
+    let currentIndex = 0;
+    let correctSlots = 0;
+    let activeTile = null;
+    let placeholder = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function shuffle(items) {
+      const result = [...items];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function startGame() {
+      roundQuestions = shuffle(QUESTIONS).slice(0, 5);
+      currentIndex = 0;
+      finish.classList.remove("show");
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      const question = roundQuestions[currentIndex];
+      correctSlots = 0;
+      feedback.hidden = true;
+      questionNow.textContent = currentIndex + 1;
+      idiomRow.replaceChildren();
+      wordBank.replaceChildren();
+
+      [...question.成語].forEach((char, index) => {
+        if (question.缺字.includes(index)) {
+          const answerIndex = question.缺字.indexOf(index);
+          const blank = document.createElement("div");
+          blank.className = "blank";
+          blank.textContent = "□";
+          blank.dataset.answer = question.答案[answerIndex];
+          blank.dataset.slot = String(answerIndex);
+          idiomRow.appendChild(blank);
+        } else {
+          const fixed = document.createElement("div");
+          fixed.className = "idiom-char";
+          fixed.textContent = char;
+          idiomRow.appendChild(fixed);
+        }
+      });
+
+      buildTiles(question).forEach(tile => wordBank.appendChild(tile));
+    }
+
+    function buildTiles(question) {
+      const used = new Set(question.答案);
+      const extra = [];
+      for (const char of shuffle([...DISTRACTORS])) {
+        if (!used.has(char) && !extra.includes(char)) extra.push(char);
+        if (extra.length === 13) break;
+      }
+
+      return shuffle([...question.答案, ...extra]).map((char, index) => {
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "tile";
+        tile.textContent = char;
+        tile.dataset.char = char;
+        tile.dataset.tileId = `tile-${currentIndex}-${index}`;
+        tile.addEventListener("pointerdown", beginDrag);
+        return tile;
+      });
+    }
+
+    function beginDrag(event) {
+      const tile = event.currentTarget;
+      if (tile.classList.contains("locked") || !feedback.hidden) return;
+
+      event.preventDefault();
+      const rect = tile.getBoundingClientRect();
+      activeTile = tile;
+      placeholder = document.createElement("div");
+      placeholder.className = "tile placeholder";
+      placeholder.style.height = `${rect.height}px`;
+      tile.after(placeholder);
+
+      offsetX = event.clientX - rect.left;
+      offsetY = event.clientY - rect.top;
+      tile.style.setProperty("--drag-width", `${rect.width}px`);
+      tile.style.setProperty("--drag-height", `${rect.height}px`);
+      tile.classList.add("dragging");
+      tile.style.left = `${event.clientX}px`;
+      tile.style.top = `${event.clientY}px`;
+      document.body.appendChild(tile);
+      tile.setPointerCapture(event.pointerId);
+      tile.addEventListener("pointermove", moveDrag);
+      tile.addEventListener("pointerup", endDrag);
+      tile.addEventListener("pointercancel", cancelDrag);
+    }
+
+    function moveDrag(event) {
+      if (!activeTile) return;
+      activeTile.style.left = `${event.clientX - offsetX + activeTile.offsetWidth / 2}px`;
+      activeTile.style.top = `${event.clientY - offsetY + activeTile.offsetHeight / 2}px`;
+      highlightBlank(event.clientX, event.clientY);
+    }
+
+    function endDrag(event) {
+      if (!activeTile) return;
+      const target = getBlankAt(event.clientX, event.clientY);
+      clearBlankHighlights();
+
+      if (target && !target.classList.contains("filled") && target.dataset.answer === activeTile.dataset.char) {
+        lockTile(target);
+        playBell();
+      } else {
+        rejectTile(target);
+      }
+      cleanupDrag(event.pointerId);
+    }
+
+    function cancelDrag(event) {
+      rejectTile(null);
+      cleanupDrag(event.pointerId);
+    }
+
+    function lockTile(blank) {
+      activeTile.className = "tile locked";
+      activeTile.style.cssText = "";
+      activeTile.removeEventListener("pointerdown", beginDrag);
+      blank.textContent = "";
+      blank.classList.add("filled");
+      blank.appendChild(activeTile);
+      if (placeholder) placeholder.remove();
+      correctSlots += 1;
+
+      if (correctSlots === 2) {
+        const question = roundQuestions[currentIndex];
+        meaningText.textContent = question.意思;
+        feedback.hidden = false;
+      }
+    }
+
+    function rejectTile(blank) {
+      const rejectedTile = activeTile;
+      activeTile.classList.remove("dragging");
+      activeTile.classList.add("wrong");
+      activeTile.style.cssText = "";
+      if (placeholder) placeholder.replaceWith(activeTile);
+      if (blank) {
+        blank.classList.remove("wrong");
+        void blank.offsetWidth;
+        blank.classList.add("wrong");
+      }
+      window.setTimeout(() => {
+        rejectedTile.classList.remove("wrong");
+        if (blank) blank.classList.remove("wrong");
+      }, 200);
+    }
+
+    function cleanupDrag(pointerId) {
+      if (!activeTile) return;
+      try {
+        activeTile.releasePointerCapture(pointerId);
+      } catch (error) {
+        // Some browsers release capture automatically after pointerup.
+      }
+      activeTile.removeEventListener("pointermove", moveDrag);
+      activeTile.removeEventListener("pointerup", endDrag);
+      activeTile.removeEventListener("pointercancel", cancelDrag);
+      activeTile = null;
+      placeholder = null;
+    }
+
+    function getBlankAt(x, y) {
+      const element = document.elementFromPoint(x, y);
+      return element ? element.closest(".blank") : null;
+    }
+
+    function highlightBlank(x, y) {
+      const target = getBlankAt(x, y);
+      document.querySelectorAll(".blank").forEach(blank => {
+        blank.classList.toggle("hover", blank === target && !blank.classList.contains("filled"));
+      });
+    }
+
+    function clearBlankHighlights() {
+      document.querySelectorAll(".blank.hover").forEach(blank => blank.classList.remove("hover"));
+    }
+
+    function playBell() {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const context = new AudioContext();
+      const now = context.currentTime;
+      const gain = context.createGain();
+      gain.connect(context.destination);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+      [880, 1320].forEach((frequency, index) => {
+        const osc = context.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(frequency, now + index * 0.045);
+        osc.connect(gain);
+        osc.start(now + index * 0.045);
+        osc.stop(now + 0.42);
+      });
+    }
+
+    nextButton.addEventListener("click", () => {
+      currentIndex += 1;
+      if (currentIndex >= roundQuestions.length) {
+        localStorage.setItem("cert_idiom", "true");
+        scoreText.textContent = "你完成了 5 題成語填字，全部答對才能進入下一題，很扎實。";
+        finish.classList.add("show");
+        restartButton.focus();
+      } else {
+        renderQuestion();
+      }
+    });
+
+    restartButton.addEventListener("click", startGame);
+    startGame();
+  </script>
+</body>
+</html>
