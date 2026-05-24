@@ -275,6 +275,85 @@ body, html {
 }
 .flash-red { animation: flashRed 0.4s ease; }
 
+/* Ending Cutscene */
+.ending-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 1900;
+    overflow: hidden;
+    background: #060403;
+    color: #fff;
+    cursor: pointer;
+}
+.ending-screen.hidden { display: none; }
+.ending-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transform: scale(1.025);
+    transition: opacity 0.45s ease, transform 5s ease;
+}
+.ending-image.show {
+    opacity: 1;
+    transform: scale(1);
+}
+.ending-vignette {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(0,0,0,0.34), transparent 30%, rgba(0,0,0,0.84)),
+        radial-gradient(circle at center, transparent 35%, rgba(0,0,0,0.48));
+    pointer-events: none;
+}
+.ending-content {
+    position: absolute;
+    left: clamp(18px, 5vw, 72px);
+    right: clamp(18px, 5vw, 72px);
+    bottom: clamp(20px, 6vh, 64px);
+    max-width: 920px;
+    text-shadow: 0 3px 14px rgba(0,0,0,0.9);
+}
+.ending-kicker {
+    color: var(--gold);
+    font-size: clamp(0.95rem, 2vw, 1.2rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+.ending-title {
+    margin: 8px 0 14px;
+    color: #ffe7a0;
+    font-size: clamp(2.2rem, 7vw, 5.6rem);
+    line-height: 1;
+    font-weight: 900;
+}
+.ending-text {
+    max-width: 820px;
+    margin: 0;
+    color: #fff7dc;
+    font-size: clamp(1.12rem, 2.6vw, 1.72rem);
+    line-height: 1.75;
+    font-weight: 700;
+}
+.ending-hint {
+    margin-top: 20px;
+    color: rgba(255, 231, 160, 0.9);
+    font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+    font-weight: 700;
+    animation: blink 1.5s infinite;
+}
+.ending-progress {
+    position: absolute;
+    right: clamp(18px, 4vw, 48px);
+    bottom: clamp(18px, 5vh, 52px);
+    color: rgba(255,255,255,0.78);
+    font-size: 1rem;
+    font-weight: 800;
+    text-shadow: 0 2px 10px #000;
+}
+
 /* Win Screen */
 .win-screen {
     position: fixed;
@@ -380,6 +459,19 @@ body, html {
     </div>
 </div>
 
+<!-- Ending Cutscene -->
+<div id="ending-screen" class="ending-screen hidden" role="dialog" aria-modal="true" aria-live="polite">
+    <img id="ending-image" class="ending-image" src="../結局/1.png" alt="">
+    <div class="ending-vignette"></div>
+    <div class="ending-content">
+        <div class="ending-kicker" id="ending-kicker">三證開天門</div>
+        <h2 class="ending-title" id="ending-title">三枚憑證歸位</h2>
+        <p class="ending-text" id="ending-text"></p>
+        <div class="ending-hint" id="ending-hint">點一下繼續</div>
+    </div>
+    <div class="ending-progress" id="ending-progress">1 / 4</div>
+</div>
+
 <!-- Win Screen -->
 <div id="win-screen" class="win-screen hidden">
     <div class="win-title">🏆 冒險完成！</div>
@@ -399,19 +491,57 @@ let certs = {
     warrior: localStorage.getItem('cert_warrior') === 'true'
 };
 
+const endingScenes = [
+    {
+        title: '三枚憑證歸位',
+        image: '../結局/1.png',
+        text: '三段旅程，不只是三場試煉。你帶回來的，是時間、文字，和勇氣的回聲。'
+    },
+    {
+        title: '書卷中的風',
+        image: '../結局/2.png',
+        text: '有些答案會寫在紙上，有些答案，會藏在你願意再試一次的手心裡。'
+    },
+    {
+        title: '冒險者回望',
+        image: '../結局/3.png',
+        text: '原來過關不是走到最後，而是知道自己還能往前。'
+    },
+    {
+        title: '新頁展開',
+        image: '../結局/4.png',
+        text: '這一頁完成了。下一頁，會由你親手寫下。'
+    }
+];
+let endingIndex = 0;
+
 document.addEventListener("DOMContentLoaded", () => {
     // Cover Logic
     const cover = document.getElementById('cover-screen');
-    if (!sessionStorage.getItem('intro_seen')) {
+    const isEndingPreview = location.hash === '#ending';
+    if (!sessionStorage.getItem('intro_seen') && !isEndingPreview) {
         cover.style.display = 'block';
         cover.addEventListener('click', () => {
             cover.classList.add('fade-out');
             sessionStorage.setItem('intro_seen', 'true');
             setTimeout(() => cover.style.display = 'none', 800);
         });
+    } else {
+        cover.style.display = 'none';
     }
 
     updateUI();
+    document.getElementById('ending-screen').addEventListener('click', advanceEnding);
+    document.addEventListener('keydown', event => {
+        if (!document.getElementById('ending-screen').classList.contains('hidden') && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            advanceEnding();
+        }
+    });
+    if (isEndingPreview) {
+        sessionStorage.setItem('intro_seen', 'true');
+        setTimeout(startEndingCutscene, 300);
+    }
 });
 
 window.addEventListener('pageshow', updateUI);
@@ -619,12 +749,44 @@ function processDrop(slot, itemType) {
 function checkWinCondition() {
     const fullSlots = document.querySelectorAll('.slot .cert-badge').length;
     if (fullSlots === 3) {
-        setTimeout(showWinScreen, 500);
+        setTimeout(startEndingCutscene, 500);
+    }
+}
+
+function startEndingCutscene() {
+    document.getElementById('gate-modal').classList.add('hidden');
+    endingIndex = 0;
+    renderEndingScene();
+    document.getElementById('ending-screen').classList.remove('hidden');
+}
+
+function renderEndingScene() {
+    const scene = endingScenes[endingIndex];
+    const image = document.getElementById('ending-image');
+
+    image.classList.remove('show');
+    setTimeout(() => {
+        image.src = scene.image;
+        image.alt = scene.title;
+        document.getElementById('ending-title').innerText = scene.title;
+        document.getElementById('ending-text').innerText = scene.text;
+        document.getElementById('ending-progress').innerText = `${endingIndex + 1} / ${endingScenes.length}`;
+        document.getElementById('ending-hint').innerText = endingIndex === endingScenes.length - 1 ? '點一下完成冒險' : '點一下繼續';
+        image.classList.add('show');
+    }, 120);
+}
+
+function advanceEnding() {
+    if (endingIndex < endingScenes.length - 1) {
+        endingIndex++;
+        renderEndingScene();
+    } else {
+        document.getElementById('ending-screen').classList.add('hidden');
+        showWinScreen();
     }
 }
 
 function showWinScreen() {
-    document.getElementById('gate-modal').classList.add('hidden');
     const winScreen = document.getElementById('win-screen');
     winScreen.classList.remove('hidden');
     
